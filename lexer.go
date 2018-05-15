@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"utf8"
+	"unicode/utf8"
 )
 
 // ************************
@@ -83,12 +83,11 @@ func (l *Lexer) run() {
 	for state := lexText; state != nil; {
 		state = state(l)
 	}
-	close(l.items())
+	close(l.tokens)
 }
 
-func Lex(name, input string) (*lexer, chan Token) {
+func Lex(input string) (*Lexer, chan Token) {
 	l := &Lexer{
-		name:   name,
 		input:  input,
 		tokens: make(chan Token),
 	}
@@ -96,12 +95,12 @@ func Lex(name, input string) (*lexer, chan Token) {
 	return l, l.tokens
 }
 
-func (l *Lexer) next() (rune int) {
+func (l *Lexer) next() rune {
 	if l.pos >= len(l.input) {
 		l.width = 0
 		return eof
 	}
-	r, width = utf8.DecodeRuneInString(l.input[l.pos:])
+	r, width := utf8.DecodeRuneInString(l.input[l.pos:])
 	l.width = width
 	l.pos += width
 	return r
@@ -124,7 +123,7 @@ func (l *Lexer) peek() rune {
 func (l *Lexer) emit(ttype TokenType) {
 	l.tokens <- Token{
 		ttype: ttype,
-		value: l.input[l.start:l.pos],
+		val:   l.input[l.start:l.pos],
 	}
 	l.start = l.pos
 }
