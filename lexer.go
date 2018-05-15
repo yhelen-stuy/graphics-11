@@ -2,7 +2,16 @@ package main
 
 import (
 	"fmt"
+	"utf8"
 )
+
+// ************************
+//  Credits for design of
+//  this lexer:
+//  Golang Talk:
+//  Lexical Scanning in Go
+//  by Rob Pike
+// ************************
 
 type TokenType int
 
@@ -65,9 +74,15 @@ type Lexer struct {
 	state  stateFn
 }
 
+var eof = rune(0)
+
 type stateFn func(*Lexer) stateFn
 
 func (l *Lexer) run() {
+	for state := lexText; state != nil; {
+		state = state(l)
+	}
+	close(l.items())
 }
 
 func Lex(name, input string) (*lexer, chan Token) {
@@ -82,4 +97,15 @@ func Lex(name, input string) (*lexer, chan Token) {
 
 func (t Token) String() {
 	fmt.Sprintf("(%d: %s)", t.ttype, t.val)
+}
+
+func (l *Lexer) next() (rune int) {
+	if l.pos >= len(l.input) {
+		l.width = 0
+		return eof
+	}
+	r, width = utf8.DecodeRuneInString(l.input[l.pos:])
+	l.width = width
+	l.pos += width
+	return r
 }
