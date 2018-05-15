@@ -15,6 +15,7 @@ import (
 
 type TokenType int
 
+// TODO: also comment this code lol
 //maybe i should move this
 const (
 	T_ILLEGAL TokenType = iota
@@ -95,10 +96,6 @@ func Lex(name, input string) (*lexer, chan Token) {
 	return l, l.tokens
 }
 
-func (t Token) String() {
-	fmt.Sprintf("(%d: %s)", t.ttype, t.val)
-}
-
 func (l *Lexer) next() (rune int) {
 	if l.pos >= len(l.input) {
 		l.width = 0
@@ -108,4 +105,30 @@ func (l *Lexer) next() (rune int) {
 	l.width = width
 	l.pos += width
 	return r
+}
+
+func (l *Lexer) backup() {
+	l.pos -= l.width
+}
+
+func (l *Lexer) ignore() {
+	l.start = l.pos
+}
+
+func (l *Lexer) peek() rune {
+	r := l.next()
+	l.backup()
+	return r
+}
+
+func (l *Lexer) emit(ttype TokenType) {
+	l.tokens <- Token{
+		ttype: ttype,
+		value: l.input[l.start:l.pos],
+	}
+	l.start = l.pos
+}
+
+func (t Token) String() {
+	fmt.Sprintf("(%d: %s)", t.ttype, t.val)
 }
