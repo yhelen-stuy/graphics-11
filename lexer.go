@@ -102,23 +102,28 @@ func Lex(input string) (*Lexer, chan Token) {
 func lexBase(l *Lexer) stateFn {
 	switch r := l.next(); {
 	case r == eof:
+		fmt.Println("Reached eof")
 		l.emit(T_EOF)
 		return nil
 	case r == '\n':
+		fmt.Println("Newline")
 		l.emit(T_NEWLINE)
+		return lexBase
 	case r == '/':
 		if l.peek() == '/' {
+			fmt.Println("Comment")
 			return lexComment
 		}
-		return lexString
+		return lexText
 	case unicode.IsSpace(r):
 		l.ignore()
+		return lexBase
 	case r == '-' || 0 <= r && r <= 9:
 		l.backup()
 		return lexNumber
 		// Is this what I want?? hb letter/number only idrk
 	case unicode.IsPrint(r):
-		return lexString
+		return lexText
 	}
 	// probably not the behavior i want lol
 	return nil
@@ -135,23 +140,38 @@ func lexNumber(l *Lexer) stateFn {
 	} else {
 		ttype = T_INT
 	}
-	if unicode.IsLetter(l.peek()) {
+	if unicode.IsLetter(l.peek()) || unicode.IsPunct(l.peek()) {
 		return l.errorf("Invalid number")
 	}
 	l.emit(ttype)
 	return lexBase
 }
 
-func lexString(l *Lexer) stateFn {
+func lexText(l *Lexer) stateFn {
 	// need to check:
-	// legal chars, if not has to be a string, else might be identifier
+	// legal chars, if not has to be a text, else might be identifier
 	// continue reading until whitespace
+	r := l.next()
+	// stop lexing when encountering whitespace
+	for unicode.IsPrint(r) && !unicode.IsSpace(r) {
+		r = l.next()
+	}
+	l.backup()
+	// need to check if identifier
+	l.emit(T_STRING)
 	return lexBase
 }
 
 func lexComment(l *Lexer) stateFn {
-	// read until newline
-	return lexBase
+	r := l.next()
+	if r == '\n' {
+		l.ignore()
+		return lexBase
+	}
+	if r == eof {
+		return nil
+	}
+	return lexComment
 }
 
 func (l *Lexer) next() rune {
@@ -163,6 +183,10 @@ func (l *Lexer) next() rune {
 	l.width = width
 	l.pos += width
 	return r
+}
+
+func (l *Lexer) NextToken() Token {
+	return <-l.tokens
 }
 
 func (l *Lexer) accept(valid string) bool {
