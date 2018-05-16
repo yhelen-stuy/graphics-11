@@ -22,13 +22,13 @@ type TokenType int
 const (
 	T_ILLEGAL TokenType = iota
 	T_ERROR
-	T_COMMENT
-	T_INT
-	T_FLOAT
-	T_STRING
-	T_NEWLINE
-	T_IDENTIFIER
-	T_EOF
+	T_COMMENT    // 2
+	T_INT        // 3
+	T_FLOAT      // 4
+	T_STRING     // 5
+	T_NEWLINE    // 6
+	T_IDENTIFIER // 7
+	T_EOF        // 8
 
 	LIHT
 	CONSTANTS
@@ -106,19 +106,17 @@ func lexBase(l *Lexer) stateFn {
 		l.emit(T_EOF)
 		return nil
 	case r == '\n':
-		fmt.Println("Newline")
 		l.emit(T_NEWLINE)
 		return lexBase
 	case r == '/':
 		if l.peek() == '/' {
-			fmt.Println("Comment")
 			return lexComment
 		}
 		return lexText
 	case unicode.IsSpace(r):
 		l.ignore()
 		return lexBase
-	case r == '-' || 0 <= r && r <= 9:
+	case r == '.' || r == '-' || strings.IndexRune("0123456789", r) >= 0:
 		l.backup()
 		return lexNumber
 		// Is this what I want?? hb letter/number only idrk
