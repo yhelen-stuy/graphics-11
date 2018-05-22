@@ -14,61 +14,6 @@ import (
 //  Lexical Scanning in Go
 //  by Rob Pike
 // ************************
-
-type TokenType int
-
-// TODO: also comment this code lol
-//maybe i should move this
-const (
-	T_ILLEGAL TokenType = iota
-	T_ERROR
-	T_COMMENT    // 2
-	T_INT        // 3
-	T_FLOAT      // 4
-	T_STRING     // 5
-	T_NEWLINE    // 6
-	T_IDENTIFIER // 7
-	T_EOF        // 8
-
-	LIHT
-	CONSTANTS
-	SAVECOORDS
-	CAMERA
-	AMBIENT
-	TORUS
-	SPHERE
-	BOX
-	LINE
-	MESH
-	TEXTURE
-	SET
-	MOVE
-	SCALE
-	ROTATE
-	BASENAME
-	SAVEKNOBS
-	TWEEN
-	FRAMES
-	VARY
-	SETKNOBS
-	FOCAL
-	DISPLAY
-	WEB
-
-	PUSH
-	POP
-
-	SAVE
-	GENERATERAYFILES
-	SHADING
-	SHADINGTYPE
-)
-
-type Token struct {
-	ttype TokenType
-	val   string
-}
-
 type Lexer struct {
 	input  string
 	start  int
@@ -155,8 +100,13 @@ func lexText(l *Lexer) stateFn {
 		r = l.next()
 	}
 	l.backup()
-	// need to check if identifier
-	l.emit(T_STRING)
+	ttype := FindOp(l.input[l.start:l.pos])
+	if ttype != T_ILLEGAL {
+		l.emit(T_IDENTIFIER)
+	} else {
+		// need to check if identifier
+		l.emit(T_STRING)
+	}
 	return lexBase
 }
 
