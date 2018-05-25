@@ -1,5 +1,5 @@
 all:
-	go run draw.go image.go main.go matrix.go vector.go stack.go lighting.go lexer.go
+	go run draw.go image.go main.go matrix.go vector.go stack.go lighting.go lexer.go token.go parser.go
 
 clean:
 	rm *.ppm

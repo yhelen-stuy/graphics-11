@@ -1,16 +1,23 @@
 package main
 
 import (
-	"bufio"
+	// "bufio"
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"strconv"
-	"strings"
+	// "strconv"
+	// "strings"
 )
 
 type Parser struct {
 	l *Lexer
+	s *Stack
+}
+
+func MakeParser() *Parser {
+	return &Parser{
+		s: MakeStack(),
+	}
 }
 
 func ParseFile(filename string) error {
@@ -18,15 +25,22 @@ func ParseFile(filename string) error {
 	if err != nil {
 		return errors.New("Couldn't read file")
 	}
-	s := string(buf)
-	ParseString(buf)
+	str := string(buf)
+	p := MakeParser()
+	p.parseString(str)
+	return nil
 }
 
-func (p *Parser) ParseString(input string) error {
-	p.l, tokens = Lex(input)
+func (p *Parser) parseString(input string) error {
+	p.l = Lex(input)
 	for {
-		t := l.NextToken()
+		t := p.l.NextToken()
 		switch t.ttype {
+		case T_IDENTIFIER:
+			switch tt := FindOp(t.val); tt {
+			default:
+				fmt.Println(tt)
+			}
 		}
 	}
 }

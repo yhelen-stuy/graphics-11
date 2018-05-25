@@ -34,13 +34,13 @@ func (l *Lexer) run() {
 	close(l.tokens)
 }
 
-func Lex(input string) (*Lexer, chan Token) {
+func Lex(input string) *Lexer {
 	l := &Lexer{
 		input:  input,
 		tokens: make(chan Token),
 	}
 	go l.run()
-	return l, l.tokens
+	return l
 }
 
 // are these all the cases????

@@ -86,7 +86,7 @@ var ops = map[string]TokenType{
 }
 
 func FindOp(op string) TokenType {
-	if isOp, ttype := ops[op]; isOp {
+	if ttype, isOp := ops[op]; isOp {
 		return ttype
 	}
 	// invalid operation
