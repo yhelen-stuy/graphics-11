@@ -5,18 +5,30 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	// "strconv"
+	"strconv"
 	// "strings"
 )
 
 type Parser struct {
-	l *Lexer
-	s *Stack
+	lexer   *Lexer
+	stack   *Stack
+	poly    *Matrix
+	edge    *Matrix
+	trans   *Matrix
+	image   *Image
+	history []Token
 }
 
 func MakeParser() *Parser {
+	trans := MakeMatrix(4, 4)
+	trans.Ident()
 	return &Parser{
-		s: MakeStack(),
+		stack:   MakeStack(),
+		poly:    MakeMatrix(4, 0),
+		edge:    MakeMatrix(4, 0),
+		trans:   trans,
+		image:   MakeImage(500, 500),
+		history: make([]Token, 1),
 	}
 }
 
@@ -32,207 +44,136 @@ func ParseFile(filename string) error {
 }
 
 func (p *Parser) parseString(input string) error {
-	p.l = Lex(input)
+	p.lexer = Lex(input)
 	for {
-		t := p.l.NextToken()
+		t := p.next()
 		switch t.ttype {
+		case T_EOF:
+			fmt.Println("received eof")
+			return nil
 		case T_IDENTIFIER:
 			switch tt := FindOp(t.val); tt {
+			case PUSH:
+				trans := p.stack.Peek()
+				if trans != nil {
+					p.stack.Push(trans.Copy())
+				}
+			case POP:
+				p.stack.Pop()
+			case SCALE:
+				scale := MakeScale(p.nextFloat(), p.nextFloat(), p.nextFloat())
+				p.trans = p.stack.Pop()
+				p.trans, _ = scale.Mult(p.trans)
+				p.stack.Push(p.trans.Copy())
+			case MOVE:
+				translate := MakeTranslate(p.nextFloat(), p.nextFloat(), p.nextFloat())
+				p.trans = p.stack.Pop()
+				p.trans, _ = translate.Mult(p.trans)
+				p.stack.Push(p.trans.Copy())
+			case ROTATE:
+				axis, err := p.nextRequired([]TokenType{T_STRING})
+				if err != nil {
+					panic(err)
+				}
+				switch axis.val {
+				case "x":
+					p.trans = p.stack.Pop()
+					rot := MakeRotX(p.nextFloat())
+					p.trans, _ = rot.Mult(p.trans)
+					p.stack.Push(p.trans.Copy())
+				case "y":
+					p.trans = p.stack.Pop()
+					rot := MakeRotY(p.nextFloat())
+					p.trans, _ = rot.Mult(p.trans)
+					p.stack.Push(p.trans.Copy())
+				case "z":
+					p.trans = p.stack.Pop()
+					rot := MakeRotZ(p.nextFloat())
+					p.trans, _ = rot.Mult(p.trans)
+					p.stack.Push(p.trans.Copy())
+				default:
+					// TODO: Error handling
+					fmt.Println("Rotate fail")
+					continue
+				}
+			case BOX:
+				p.poly.AddBox(p.nextFloat(), p.nextFloat(), p.nextFloat(), p.nextFloat(), p.nextFloat(), p.nextFloat())
+				p.poly, _ = p.poly.Mult(p.stack.Peek())
+				p.image.DrawPolygons(p.poly, Color{r: 0, b: 255, g: 0})
+				p.poly = MakeMatrix(4, 0)
+			case SPHERE:
+				p.poly.AddSphere(p.nextFloat(), p.nextFloat(), p.nextFloat(), p.nextFloat())
+				p.poly, _ = p.poly.Mult(p.stack.Peek())
+				p.image.DrawPolygons(p.poly, Color{r: 0, b: 255, g: 0})
+				p.poly = MakeMatrix(4, 0)
+			case TORUS:
+				p.poly.AddTorus(p.nextFloat(), p.nextFloat(), p.nextFloat(), p.nextFloat(), p.nextFloat())
+				p.poly, _ = p.poly.Mult(p.stack.Peek())
+				p.image.DrawPolygons(p.poly, Color{r: 0, b: 255, g: 0})
+				p.poly = MakeMatrix(4, 0)
+			case LINE:
+				p.edge.AddEdge(p.nextFloat(), p.nextFloat(), p.nextFloat(), p.nextFloat(), p.nextFloat(), p.nextFloat())
+				p.edge, _ = p.edge.Mult(p.stack.Peek())
+				p.image.DrawLines(p.edge, Color{r: 255, b: 0, g: 0})
+				p.edge = MakeMatrix(4, 0)
+			case SAVE:
+				f, err := p.nextRequired([]TokenType{T_STRING})
+				if err != nil {
+					panic(err)
+				}
+				p.image.SavePPM("temp")
+				p.image.ConvertPNG("temp", f.val)
+			case DISPLAY:
+				p.image.Display()
 			default:
-				fmt.Println(tt)
+				fmt.Println(tt, t.val)
 			}
+		default:
+			continue
 		}
 	}
 }
 
-/*
-	scanner := bufio.NewScanner(f)
-	s := MakeStack()
-	for scanner.Scan() {
-		switch c := strings.TrimSpace(scanner.Text()); c {
-		case "line":
-			args := getArgs(scanner)
-			if err := checkArgCount(args, 6); err != nil {
-				fmt.Println(err)
-				continue
-			}
-			fargs := numerize(args)
-			e.AddEdge(fargs[0], fargs[1], fargs[2], fargs[3], fargs[4], fargs[5])
-			e, _ = e.Mult(s.Peek())
-			image.DrawLines(e, Color{r: 255, b: 0, g: 0})
-			e = MakeMatrix(4, 0)
-
-		case "pop":
-			s.Pop()
-
-		case "push":
-			t := s.Peek()
-			if t != nil {
-				s.Push(t.Copy())
-			}
-
-		case "ident":
-			t.Ident()
-
-		case "scale":
-			args := getArgs(scanner)
-			if err := checkArgCount(args, 3); err != nil {
-				fmt.Println(err)
-				continue
-			}
-			fargs := numerize(args)
-			scale := MakeScale(fargs[0], fargs[1], fargs[2])
-			t = s.Pop()
-			t, _ = scale.Mult(t)
-			s.Push(t.Copy())
-
-		case "move":
-			args := getArgs(scanner)
-			if err := checkArgCount(args, 3); err != nil {
-				fmt.Println(err)
-				continue
-			}
-			fargs := numerize(args)
-			translate := MakeTranslate(fargs[0], fargs[1], fargs[2])
-			t = s.Pop()
-			t, _ = translate.Mult(t)
-			s.Push(t.Copy())
-
-		case "rotate":
-			args := getArgs(scanner)
-			if err := checkArgCount(args, 2); err != nil {
-				fmt.Println(err)
-				continue
-			}
-			// TODO: Error handling
-			deg, _ := strconv.ParseFloat(args[1], 64)
-			switch args[0] {
-			case "x":
-				t = s.Pop()
-				rot := MakeRotX(deg)
-				t, _ = rot.Mult(t)
-				s.Push(t.Copy())
-			case "y":
-				t = s.Pop()
-				rot := MakeRotY(deg)
-				t, _ = rot.Mult(t)
-				s.Push(t.Copy())
-			case "z":
-				t = s.Pop()
-				rot := MakeRotZ(deg)
-				t, _ = rot.Mult(t)
-				s.Push(t.Copy())
-			default:
-				// TODO: Error handling
-				fmt.Println("Rotate fail")
-				continue
-			}
-
-		case "circle":
-			args := getArgs(scanner)
-			if err := checkArgCount(args, 4); err != nil {
-				fmt.Println(err)
-				continue
-			}
-			fargs := numerize(args)
-			e.AddCircle(fargs[0], fargs[1], fargs[2], fargs[3])
-			e, _ = e.Mult(s.Peek())
-			image.DrawLines(e, Color{r: 255, b: 0, g: 0})
-			e = MakeMatrix(4, 0)
-
-		case "hermite":
-			args := getArgs(scanner)
-			if err := checkArgCount(args, 8); err != nil {
-				fmt.Println(err)
-				continue
-			}
-			fargs := numerize(args)
-			err := e.AddHermite(fargs[0], fargs[1], fargs[2], fargs[3], fargs[4], fargs[5], fargs[6], fargs[7], 0.01)
-			if err != nil {
-				fmt.Println(err)
-				continue
-			}
-			e, _ = e.Mult(s.Peek())
-			image.DrawLines(e, Color{r: 255, b: 0, g: 0})
-			e = MakeMatrix(4, 0)
-
-		case "bezier":
-			args := getArgs(scanner)
-			if err := checkArgCount(args, 8); err != nil {
-				fmt.Println(err)
-				continue
-			}
-			fargs := numerize(args)
-			err := e.AddBezier(fargs[0], fargs[1], fargs[2], fargs[3], fargs[4], fargs[5], fargs[6], fargs[7], 0.01)
-			if err != nil {
-				fmt.Println(err)
-				continue
-			}
-			e, _ = e.Mult(s.Peek())
-			image.DrawLines(e, Color{r: 255, b: 0, g: 0})
-			e = MakeMatrix(4, 0)
-
-		case "box":
-			args := getArgs(scanner)
-			if err := checkArgCount(args, 6); err != nil {
-				fmt.Println(err)
-				continue
-			}
-			fargs := numerize(args)
-			p.AddBox(fargs[0], fargs[1], fargs[2], fargs[3], fargs[4], fargs[5])
-			p, _ = p.Mult(s.Peek())
-			image.DrawPolygons(p, Color{r: 0, b: 255, g: 0})
-			p = MakeMatrix(4, 0)
-			fmt.Println("drawing box")
-
-		case "sphere":
-			args := getArgs(scanner)
-			if err := checkArgCount(args, 4); err != nil {
-				fmt.Println(err)
-				continue
-			}
-			fargs := numerize(args)
-			p.AddSphere(fargs[0], fargs[1], fargs[2], fargs[3])
-			p, _ = p.Mult(s.Peek())
-			image.DrawPolygons(p, Color{r: 0, b: 255, g: 0})
-			p = MakeMatrix(4, 0)
-
-		case "torus":
-			args := getArgs(scanner)
-			if err := checkArgCount(args, 5); err != nil {
-				fmt.Println(err)
-				continue
-			}
-			fargs := numerize(args)
-			p.AddTorus(fargs[0], fargs[1], fargs[2], fargs[3], fargs[4])
-			p, _ = p.Mult(s.Peek())
-			image.DrawPolygons(p, Color{r: 0, b: 255, g: 0})
-			p = MakeMatrix(4, 0)
-
-		case "clear":
-			image.Clear()
-
-		case "display":
-			image.Display()
-
-		case "save":
-			args := getArgs(scanner)
-			if err := checkArgCount(args, 1); err != nil {
-				fmt.Println(err)
-				continue
-			}
-			image.SavePPM(args[0])
-
-		case "quit":
-			break
-
-		default:
-			if c[0] != '#' {
-				fmt.Printf("Error: Couldn't recognize command %s\n", c)
-			}
-			continue
+func (p *Parser) nextRequired(ttypes []TokenType) (Token, error) {
+	t := p.next()
+	for _, ttype := range ttypes {
+		if t.ttype == ttype {
+			return t, nil
 		}
-		// fmt.Println(t)
 	}
-	return nil
-*/
+	fmt.Println(ttypes)
+	panic(fmt.Errorf("Unexpected type received: got %d with value: %s", t.ttype, t.val))
+}
+
+func (p *Parser) nextInt() int {
+	t, _ := p.nextRequired([]TokenType{T_INT})
+	i, _ := strconv.Atoi(t.val)
+	return i
+}
+
+func (p *Parser) nextFloat() float64 {
+	t, _ := p.nextRequired([]TokenType{T_INT, T_FLOAT})
+	i, _ := strconv.ParseFloat(t.val, 64)
+	return i
+}
+
+// returns next token
+func (p *Parser) next() Token {
+	length := len(p.history)
+	if length == 0 {
+		return p.lexer.NextToken()
+	}
+	t := p.history[length-1]
+	p.history = p.history[:length-1]
+	return t
+}
+
+func (p *Parser) backup(t Token) {
+	p.history = append(p.history, t)
+}
+
+func (p *Parser) peek() Token {
+	t := p.next()
+	p.backup(t)
+	return t
+}

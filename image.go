@@ -99,6 +99,14 @@ func (image Image) SavePPM(filename string) error {
 	return nil
 }
 
+// Converts ppm to png and deletes ppm
+func (image Image) ConvertPNG(ppmFile, filename string) error {
+	c := exec.Command("convert", ppmFile, filename)
+	_, err := c.Output()
+	os.Remove(ppmFile)
+	return err
+}
+
 func (image Image) Display() error {
 	f := "temp"
 	image.SavePPM(f)
