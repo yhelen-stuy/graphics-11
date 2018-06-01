@@ -1,10 +1,12 @@
 package main
 
 import (
-// "fmt"
-// "io/ioutil"
+	"os"
+	// "fmt"
+	// "io/ioutil"
 )
 
 func main() {
-	ParseFile("robot.mdl")
+	args := os.Args
+	ParseFile(args[1])
 }

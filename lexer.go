@@ -47,7 +47,6 @@ func Lex(input string) *Lexer {
 func lexBase(l *Lexer) stateFn {
 	switch r := l.next(); {
 	case r == eof:
-		fmt.Println("Reached eof")
 		l.emit(T_EOF)
 		return nil
 	case r == '\n':

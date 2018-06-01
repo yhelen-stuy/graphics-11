@@ -10,25 +10,29 @@ import (
 )
 
 type Parser struct {
-	lexer   *Lexer
-	stack   *Stack
-	poly    *Matrix
-	edge    *Matrix
-	trans   *Matrix
-	image   *Image
-	history []Token
+	lexer    *Lexer
+	stack    *Stack
+	poly     *Matrix
+	edge     *Matrix
+	trans    *Matrix
+	image    *Image
+	history  []Token
+	frames   int
+	basename string
 }
 
 func MakeParser() *Parser {
 	trans := MakeMatrix(4, 4)
 	trans.Ident()
 	return &Parser{
-		stack:   MakeStack(),
-		poly:    MakeMatrix(4, 0),
-		edge:    MakeMatrix(4, 0),
-		trans:   trans,
-		image:   MakeImage(500, 500),
-		history: make([]Token, 1),
+		stack:    MakeStack(),
+		poly:     MakeMatrix(4, 0),
+		edge:     MakeMatrix(4, 0),
+		trans:    trans,
+		image:    MakeImage(500, 500),
+		history:  make([]Token, 1),
+		frames:   -1,
+		basename: "",
 	}
 }
 
@@ -39,92 +43,109 @@ func ParseFile(filename string) error {
 	}
 	str := string(buf)
 	p := MakeParser()
-	p.parseString(str)
+	c, _ := p.parseString(str)
+	for i := range c {
+		fmt.Println(c[i].CommandType())
+	}
 	return nil
 }
 
-func (p *Parser) parseString(input string) error {
+func (p *Parser) parseString(input string) ([]Command, error) {
 	p.lexer = Lex(input)
+	commands := make([]Command, 0)
 	for {
 		t := p.next()
 		switch t.ttype {
 		case T_EOF:
-			fmt.Println("received eof")
-			return nil
+			return commands, nil
 		case T_IDENTIFIER:
 			switch tt := FindOp(t.val); tt {
 			case PUSH:
-				trans := p.stack.Peek()
-				if trans != nil {
-					p.stack.Push(trans.Copy())
-				}
+				c := PushCommand{}
+				commands = append(commands, c)
 			case POP:
-				p.stack.Pop()
+				c := PopCommand{}
+				commands = append(commands, c)
 			case SCALE:
-				scale := MakeScale(p.nextFloat(), p.nextFloat(), p.nextFloat())
-				p.trans = p.stack.Pop()
-				p.trans, _ = scale.Mult(p.trans)
-				p.stack.Push(p.trans.Copy())
+				c := ScaleCommand{
+					x: p.nextFloat(),
+					y: p.nextFloat(),
+					z: p.nextFloat(),
+				}
+				commands = append(commands, c)
 			case MOVE:
-				translate := MakeTranslate(p.nextFloat(), p.nextFloat(), p.nextFloat())
-				p.trans = p.stack.Pop()
-				p.trans, _ = translate.Mult(p.trans)
-				p.stack.Push(p.trans.Copy())
+				c := MoveCommand{
+					x: p.nextFloat(),
+					y: p.nextFloat(),
+					z: p.nextFloat(),
+				}
+				commands = append(commands, c)
 			case ROTATE:
+				c := RotateCommand{}
 				axis, err := p.nextRequired([]TokenType{T_STRING})
 				if err != nil {
-					panic(err)
+					return nil, err
 				}
-				switch axis.val {
-				case "x":
-					p.trans = p.stack.Pop()
-					rot := MakeRotX(p.nextFloat())
-					p.trans, _ = rot.Mult(p.trans)
-					p.stack.Push(p.trans.Copy())
-				case "y":
-					p.trans = p.stack.Pop()
-					rot := MakeRotY(p.nextFloat())
-					p.trans, _ = rot.Mult(p.trans)
-					p.stack.Push(p.trans.Copy())
-				case "z":
-					p.trans = p.stack.Pop()
-					rot := MakeRotZ(p.nextFloat())
-					p.trans, _ = rot.Mult(p.trans)
-					p.stack.Push(p.trans.Copy())
-				default:
-					// TODO: Error handling
-					fmt.Println("Rotate fail")
-					continue
-				}
+				c.axis = axis.val
+				c.angle = p.nextFloat()
+				commands = append(commands, c)
 			case BOX:
-				p.poly.AddBox(p.nextFloat(), p.nextFloat(), p.nextFloat(), p.nextFloat(), p.nextFloat(), p.nextFloat())
-				p.poly, _ = p.poly.Mult(p.stack.Peek())
-				p.image.DrawPolygons(p.poly, Color{r: 0, b: 255, g: 0})
-				p.poly = MakeMatrix(4, 0)
-			case SPHERE:
-				p.poly.AddSphere(p.nextFloat(), p.nextFloat(), p.nextFloat(), p.nextFloat())
-				p.poly, _ = p.poly.Mult(p.stack.Peek())
-				p.image.DrawPolygons(p.poly, Color{r: 0, b: 255, g: 0})
-				p.poly = MakeMatrix(4, 0)
-			case TORUS:
-				p.poly.AddTorus(p.nextFloat(), p.nextFloat(), p.nextFloat(), p.nextFloat(), p.nextFloat())
-				p.poly, _ = p.poly.Mult(p.stack.Peek())
-				p.image.DrawPolygons(p.poly, Color{r: 0, b: 255, g: 0})
-				p.poly = MakeMatrix(4, 0)
-			case LINE:
-				p.edge.AddEdge(p.nextFloat(), p.nextFloat(), p.nextFloat(), p.nextFloat(), p.nextFloat(), p.nextFloat())
-				p.edge, _ = p.edge.Mult(p.stack.Peek())
-				p.image.DrawLines(p.edge, Color{r: 255, b: 0, g: 0})
-				p.edge = MakeMatrix(4, 0)
-			case SAVE:
-				f, err := p.nextRequired([]TokenType{T_STRING})
-				if err != nil {
-					panic(err)
+				c := BoxCommand{
+					x:      p.nextFloat(),
+					y:      p.nextFloat(),
+					z:      p.nextFloat(),
+					height: p.nextFloat(),
+					width:  p.nextFloat(),
+					depth:  p.nextFloat(),
 				}
-				p.image.SavePPM("temp")
-				p.image.ConvertPNG("temp", f.val)
+				commands = append(commands, c)
+			case SPHERE:
+				c := SphereCommand{
+					center: []float64{p.nextFloat(), p.nextFloat(), p.nextFloat()},
+					radius: p.nextFloat(),
+				}
+				commands = append(commands, c)
+			case TORUS:
+				c := TorusCommand{
+					center: []float64{p.nextFloat(), p.nextFloat(), p.nextFloat()},
+					r1:     p.nextFloat(),
+					r2:     p.nextFloat(),
+				}
+				commands = append(commands, c)
+			case LINE:
+				c := LineCommand{
+					p1: []float64{p.nextFloat(), p.nextFloat(), p.nextFloat()},
+					p2: []float64{p.nextFloat(), p.nextFloat(), p.nextFloat()},
+				}
+				commands = append(commands, c)
+			case FRAMES:
+				if p.frames != -1 {
+					fmt.Println("Warning: Setting frames multiple times")
+				}
+				p.frames = p.nextInt()
+				if p.frames <= 0 {
+					panic(errors.New("Frames must be positive"))
+				}
+			case BASENAME:
+				if p.basename != "" {
+					fmt.Println("Warning: Setting basename multiple times")
+				}
+				basename, err := p.nextRequired([]TokenType{T_STRING})
+				if err != nil {
+					return nil, err
+				}
+				p.basename = basename.val
+			case SAVE:
+				c := SaveCommand{}
+				filename, err := p.nextRequired([]TokenType{T_STRING})
+				if err != nil {
+					return nil, err
+				}
+				c.filename = filename.val
+				commands = append(commands, c)
 			case DISPLAY:
-				p.image.Display()
+				c := DisplayCommand{}
+				commands = append(commands, c)
 			default:
 				fmt.Println(tt, t.val)
 			}
