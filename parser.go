@@ -44,9 +44,7 @@ func ParseFile(filename string) error {
 	str := string(buf)
 	p := MakeParser()
 	c, _ := p.parseString(str)
-	for i := range c {
-		fmt.Println(c[i].CommandType())
-	}
+	p.runCommands(c)
 	return nil
 }
 
@@ -151,6 +149,84 @@ func (p *Parser) parseString(input string) ([]Command, error) {
 			}
 		default:
 			continue
+		}
+	}
+}
+
+func (p *Parser) runCommands(commands []Command) {
+	for _, com := range commands {
+		switch com.(type) {
+		case PushCommand:
+			p.trans = p.stack.Peek()
+			if p.trans != nil {
+				p.stack.Push(p.trans.Copy())
+			}
+		case PopCommand:
+			p.stack.Pop()
+		case ScaleCommand:
+			c := com.(ScaleCommand)
+			scale := MakeScale(c.x, c.y, c.z)
+			p.trans = p.stack.Pop()
+			p.trans, _ = scale.Mult(p.trans)
+			p.stack.Push(p.trans.Copy())
+		case MoveCommand:
+			c := com.(MoveCommand)
+			translate := MakeTranslate(c.x, c.y, c.z)
+			p.trans = p.stack.Pop()
+			p.trans, _ = translate.Mult(p.trans)
+			p.stack.Push(p.trans.Copy())
+		case RotateCommand:
+			c := com.(RotateCommand)
+			switch c.axis {
+			case "x":
+				p.trans = p.stack.Pop()
+				rot := MakeRotX(c.angle)
+				p.trans, _ = rot.Mult(p.trans)
+				p.stack.Push(p.trans.Copy())
+			case "y":
+				p.trans = p.stack.Pop()
+				rot := MakeRotY(c.angle)
+				p.trans, _ = rot.Mult(p.trans)
+				p.stack.Push(p.trans.Copy())
+			case "z":
+				p.trans = p.stack.Pop()
+				rot := MakeRotZ(c.angle)
+				p.trans, _ = rot.Mult(p.trans)
+				p.stack.Push(p.trans.Copy())
+			default:
+				fmt.Println("Rotate fail")
+				continue
+			}
+		case BoxCommand:
+			c := com.(BoxCommand)
+			p.poly.AddBox(c.x, c.y, c.z, c.height, c.width, c.depth)
+			p.poly, _ = p.poly.Mult(p.stack.Peek())
+			p.image.DrawPolygons(p.poly, Color{r: 0, b: 255, g: 0})
+			p.poly = MakeMatrix(4, 0)
+		case SphereCommand:
+			c := com.(SphereCommand)
+			p.poly.AddSphere(c.center[0], c.center[1], c.center[2], c.radius)
+			p.poly, _ = p.poly.Mult(p.stack.Peek())
+			p.image.DrawPolygons(p.poly, Color{r: 0, b: 255, g: 0})
+			p.poly = MakeMatrix(4, 0)
+		case TorusCommand:
+			c := com.(TorusCommand)
+			p.poly.AddTorus(c.center[0], c.center[1], c.center[2], c.r1, c.r2)
+			p.poly, _ = p.poly.Mult(p.stack.Peek())
+			p.image.DrawPolygons(p.poly, Color{r: 0, b: 255, g: 0})
+			p.poly = MakeMatrix(4, 0)
+		case LineCommand:
+			c := com.(LineCommand)
+			p.poly.AddEdge(c.p1[0], c.p1[1], c.p1[2], c.p2[0], c.p1[1], c.p2[2])
+			p.edge, _ = p.edge.Mult(p.stack.Peek())
+			p.image.DrawLines(p.edge, Color{r: 255, b: 0, g: 0})
+			p.edge = MakeMatrix(4, 0)
+		case SaveCommand:
+			c := com.(SaveCommand)
+			p.image.SavePPM("temp")
+			p.image.ConvertPNG("temp", c.filename)
+		case DisplayCommand:
+			p.image.Display()
 		}
 	}
 }
