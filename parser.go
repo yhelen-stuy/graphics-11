@@ -9,6 +9,12 @@ import (
 	// "strings"
 )
 
+var knobs map[string][]float64
+
+func init() {
+	knobs = make(map[string][]float64)
+}
+
 type Parser struct {
 	lexer    *Lexer
 	stack    *Stack
@@ -80,10 +86,7 @@ func (p *Parser) parseString(input string) ([]Command, error) {
 				commands = append(commands, c)
 			case ROTATE:
 				c := RotateCommand{}
-				axis, err := p.nextRequired([]TokenType{T_STRING})
-				if err != nil {
-					return nil, err
-				}
+				axis := p.nextRequired([]TokenType{T_STRING})
 				c.axis = axis.val
 				c.angle = p.nextFloat()
 				commands = append(commands, c)
@@ -116,6 +119,29 @@ func (p *Parser) parseString(input string) ([]Command, error) {
 					p2: []float64{p.nextFloat(), p.nextFloat(), p.nextFloat()},
 				}
 				commands = append(commands, c)
+			case VARY:
+				if p.frames <= 1 {
+					return nil, errors.New("Frames not set")
+				}
+				name := p.nextRequired([]TokenType{T_STRING}).val
+				knob, isKnob := knobs[name]
+				if !isKnob {
+					knobs[name] = make([]float64, p.frames)
+				}
+				startFrame := p.nextInt()
+				endFrame := p.nextInt()
+				if startFrame < 0 || endFrame < startFrame || endFrame < 0 {
+					return nil, errors.New("Invalid frame values in vary")
+				}
+				startVal := p.nextFloat()
+				endVal := p.nextFloat()
+				// slope
+				m := (endVal - startVal) / float64(endFrame-startFrame+1)
+				for i := startFrame; i < endFrame; i++ {
+					knob[i] = startVal
+					startVal += m
+				}
+				fmt.Println(knobs)
 			case FRAMES:
 				if p.frames != -1 {
 					fmt.Println("Warning: Setting frames multiple times")
@@ -128,17 +154,11 @@ func (p *Parser) parseString(input string) ([]Command, error) {
 				if p.basename != "" {
 					fmt.Println("Warning: Setting basename multiple times")
 				}
-				basename, err := p.nextRequired([]TokenType{T_STRING})
-				if err != nil {
-					return nil, err
-				}
+				basename := p.nextRequired([]TokenType{T_STRING})
 				p.basename = basename.val
 			case SAVE:
 				c := SaveCommand{}
-				filename, err := p.nextRequired([]TokenType{T_STRING})
-				if err != nil {
-					return nil, err
-				}
+				filename := p.nextRequired([]TokenType{T_STRING})
 				c.filename = filename.val
 				commands = append(commands, c)
 			case DISPLAY:
@@ -231,11 +251,11 @@ func (p *Parser) runCommands(commands []Command) {
 	}
 }
 
-func (p *Parser) nextRequired(ttypes []TokenType) (Token, error) {
+func (p *Parser) nextRequired(ttypes []TokenType) Token {
 	t := p.next()
 	for _, ttype := range ttypes {
 		if t.ttype == ttype {
-			return t, nil
+			return t
 		}
 	}
 	fmt.Println(ttypes)
@@ -243,13 +263,13 @@ func (p *Parser) nextRequired(ttypes []TokenType) (Token, error) {
 }
 
 func (p *Parser) nextInt() int {
-	t, _ := p.nextRequired([]TokenType{T_INT})
+	t := p.nextRequired([]TokenType{T_INT})
 	i, _ := strconv.Atoi(t.val)
 	return i
 }
 
 func (p *Parser) nextFloat() float64 {
-	t, _ := p.nextRequired([]TokenType{T_INT, T_FLOAT})
+	t := p.nextRequired([]TokenType{T_INT, T_FLOAT})
 	i, _ := strconv.ParseFloat(t.val, 64)
 	return i
 }
