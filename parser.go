@@ -76,6 +76,10 @@ func (p *Parser) parseString(input string) ([]Command, error) {
 					y: p.nextFloat(),
 					z: p.nextFloat(),
 				}
+				knob := p.nextString()
+				if knob != "" {
+					c.knob = knob
+				}
 				commands = append(commands, c)
 			case MOVE:
 				c := MoveCommand{
@@ -83,12 +87,20 @@ func (p *Parser) parseString(input string) ([]Command, error) {
 					y: p.nextFloat(),
 					z: p.nextFloat(),
 				}
+				knob := p.nextString()
+				if knob != "" {
+					c.knob = knob
+				}
 				commands = append(commands, c)
 			case ROTATE:
 				c := RotateCommand{}
 				axis := p.nextRequired([]TokenType{T_STRING})
 				c.axis = axis.val
 				c.angle = p.nextFloat()
+				knob := p.nextString()
+				if knob != "" {
+					c.knob = knob
+				}
 				commands = append(commands, c)
 			case BOX:
 				c := BoxCommand{
@@ -126,7 +138,8 @@ func (p *Parser) parseString(input string) ([]Command, error) {
 				name := p.nextRequired([]TokenType{T_STRING}).val
 				knob, isKnob := knobs[name]
 				if !isKnob {
-					knobs[name] = make([]float64, p.frames)
+					knob = make([]float64, p.frames)
+					knobs[name] = knob
 				}
 				startFrame := p.nextInt()
 				endFrame := p.nextInt()
@@ -141,7 +154,7 @@ func (p *Parser) parseString(input string) ([]Command, error) {
 					knob[i] = startVal
 					startVal += m
 				}
-				fmt.Println(knobs)
+				fmt.Println(knob)
 			case FRAMES:
 				if p.frames != -1 {
 					fmt.Println("Warning: Setting frames multiple times")
@@ -252,14 +265,23 @@ func (p *Parser) runCommands(commands []Command) {
 }
 
 func (p *Parser) nextRequired(ttypes []TokenType) Token {
-	t := p.next()
+	t, err := p.nextRequested(ttypes)
+	if err != nil {
+		panic(err)
+	}
+	return t
+}
+
+// Like nextRequired but doesn't panic
+func (p *Parser) nextRequested(ttypes []TokenType) (Token, error) {
+	t := p.peek()
 	for _, ttype := range ttypes {
 		if t.ttype == ttype {
-			return t
+			p.next()
+			return t, nil
 		}
 	}
-	fmt.Println(ttypes)
-	panic(fmt.Errorf("Unexpected type received: got %d with value: %s", t.ttype, t.val))
+	return Token{val: ""}, fmt.Errorf("Unexpected type received: got %d with value: %s", t.ttype, t.val)
 }
 
 func (p *Parser) nextInt() int {
@@ -272,6 +294,15 @@ func (p *Parser) nextFloat() float64 {
 	t := p.nextRequired([]TokenType{T_INT, T_FLOAT})
 	i, _ := strconv.ParseFloat(t.val, 64)
 	return i
+}
+
+// Doesn't panic if error
+func (p *Parser) nextString() string {
+	t, err := p.nextRequested([]TokenType{T_STRING})
+	if err != nil {
+		return ""
+	}
+	return t.val
 }
 
 // returns next token
