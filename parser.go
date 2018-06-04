@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"os/exec"
 	"strconv"
 	// "strings"
 )
@@ -25,6 +27,7 @@ type Parser struct {
 	history  []Token
 	frames   int
 	basename string
+	animated bool
 }
 
 func MakeParser() *Parser {
@@ -39,6 +42,7 @@ func MakeParser() *Parser {
 		history:  make([]Token, 1),
 		frames:   -1,
 		basename: "",
+		animated: false,
 	}
 }
 
@@ -50,7 +54,7 @@ func ParseFile(filename string) error {
 	str := string(buf)
 	p := MakeParser()
 	c, _ := p.parseString(str)
-	p.runCommands(c)
+	p.run(c)
 	return nil
 }
 
@@ -150,11 +154,11 @@ func (p *Parser) parseString(input string) ([]Command, error) {
 				endVal := p.nextFloat()
 				// slope
 				m := (endVal - startVal) / float64(endFrame-startFrame+1)
-				for i := startFrame; i < endFrame; i++ {
+				for i := startFrame; i <= endFrame; i++ {
 					knob[i] = startVal
 					startVal += m
 				}
-				fmt.Println(knob)
+				p.animated = true
 			case FRAMES:
 				if p.frames != -1 {
 					fmt.Println("Warning: Setting frames multiple times")
@@ -186,7 +190,45 @@ func (p *Parser) parseString(input string) ([]Command, error) {
 	}
 }
 
-func (p *Parser) runCommands(commands []Command) {
+func (p *Parser) run(commands []Command) {
+	if p.animated {
+		fmt.Println(knobs)
+		if p.basename == "" {
+			fmt.Println("Warning: No basename set. Using default basename")
+			p.basename = "frame"
+		}
+		os.RemoveAll("frames")
+		os.Mkdir("frames", 0755)
+		for i := 0; i < p.frames; i++ {
+			err := p.runCommands(commands, i)
+			if err != nil {
+				panic(err)
+			}
+			ppm := fmt.Sprintf("frames/%s%03d.%s", p.basename, i, "ppm")
+			png := fmt.Sprintf("frames/%s%03d.%s", p.basename, i, "png")
+			p.image.SavePPM(ppm)
+			p.image.ConvertPNG(ppm, png)
+			p.image.Clear()
+			p.trans.Ident()
+			p.stack = MakeStack()
+			fmt.Println("Finished frame ", i)
+		}
+		path := fmt.Sprintf("frames/%s*", p.basename)
+		filename := fmt.Sprintf("%s.gif", p.basename)
+		err := exec.Command("convert", "-delay", "10", path, filename).Run()
+		if err != nil {
+			fmt.Println(err)
+			panic(err)
+		}
+	} else {
+		err := p.runCommands(commands, 1)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func (p *Parser) runCommands(commands []Command, frame int) error {
 	for _, com := range commands {
 		switch com.(type) {
 		case PushCommand:
@@ -198,32 +240,60 @@ func (p *Parser) runCommands(commands []Command) {
 			p.stack.Pop()
 		case ScaleCommand:
 			c := com.(ScaleCommand)
-			scale := MakeScale(c.x, c.y, c.z)
+			x, y, z := c.x, c.y, c.z
+			if c.knob != "" {
+				k, err := getKnobValue(c.knob, frame)
+				if err != nil {
+					return err
+				}
+				x *= k
+				y *= k
+				z *= k
+			}
+			scale := MakeScale(x, y, z)
 			p.trans = p.stack.Pop()
 			p.trans, _ = scale.Mult(p.trans)
 			p.stack.Push(p.trans.Copy())
 		case MoveCommand:
 			c := com.(MoveCommand)
-			translate := MakeTranslate(c.x, c.y, c.z)
+			x, y, z := c.x, c.y, c.z
+			if c.knob != "" {
+				k, err := getKnobValue(c.knob, frame)
+				if err != nil {
+					return err
+				}
+				x *= k
+				y *= k
+				z *= k
+			}
+			translate := MakeTranslate(x, y, z)
 			p.trans = p.stack.Pop()
 			p.trans, _ = translate.Mult(p.trans)
 			p.stack.Push(p.trans.Copy())
 		case RotateCommand:
 			c := com.(RotateCommand)
+			angle := c.angle
+			if c.knob != "" {
+				k, err := getKnobValue(c.knob, frame)
+				if err != nil {
+					return err
+				}
+				angle *= k
+			}
 			switch c.axis {
 			case "x":
 				p.trans = p.stack.Pop()
-				rot := MakeRotX(c.angle)
+				rot := MakeRotX(angle)
 				p.trans, _ = rot.Mult(p.trans)
 				p.stack.Push(p.trans.Copy())
 			case "y":
 				p.trans = p.stack.Pop()
-				rot := MakeRotY(c.angle)
+				rot := MakeRotY(angle)
 				p.trans, _ = rot.Mult(p.trans)
 				p.stack.Push(p.trans.Copy())
 			case "z":
 				p.trans = p.stack.Pop()
-				rot := MakeRotZ(c.angle)
+				rot := MakeRotZ(angle)
 				p.trans, _ = rot.Mult(p.trans)
 				p.stack.Push(p.trans.Copy())
 			default:
@@ -262,6 +332,15 @@ func (p *Parser) runCommands(commands []Command) {
 			p.image.Display()
 		}
 	}
+	return nil
+}
+
+func getKnobValue(name string, frame int) (float64, error) {
+	knob, isKnob := knobs[name]
+	if !isKnob {
+		return 0, fmt.Errorf("Could not find knob %s", name)
+	}
+	return knob[frame], nil
 }
 
 func (p *Parser) nextRequired(ttypes []TokenType) Token {
