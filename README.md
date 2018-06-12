@@ -21,3 +21,11 @@ For example
 ```
 $ ./main lighting.mdl
 ```
+
+## Added for final project:
+
+Implemented:
+
+* light
+* constants
+* ambient

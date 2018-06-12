@@ -17,7 +17,6 @@ const (
 
 	LIGHT
 	CONSTANTS
-	CAMERA
 	AMBIENT
 	TORUS
 	SPHERE
@@ -43,25 +42,22 @@ type Token struct {
 }
 
 var ops = map[string]TokenType{
-	"torus":    TORUS,
-	"sphere":   SPHERE,
-	"box":      BOX,
-	"line":     LINE,
-	"move":     MOVE,
-	"scale":    SCALE,
-	"rotate":   ROTATE,
-	"basename": BASENAME,
-	"frames":   FRAMES,
-	"vary":     VARY,
-	"push":     PUSH,
-	"pop":      POP,
-	"save":     SAVE,
-	"display":  DISPLAY,
-
-	// UNIMPLEMENTED
+	"torus":     TORUS,
+	"sphere":    SPHERE,
+	"box":       BOX,
+	"line":      LINE,
+	"move":      MOVE,
+	"scale":     SCALE,
+	"rotate":    ROTATE,
+	"basename":  BASENAME,
+	"frames":    FRAMES,
+	"vary":      VARY,
+	"push":      PUSH,
+	"pop":       POP,
+	"save":      SAVE,
+	"display":   DISPLAY,
 	"light":     LIGHT,
 	"ambient":   AMBIENT,
-	"camera":    CAMERA,
 	"constants": CONSTANTS,
 }
 
