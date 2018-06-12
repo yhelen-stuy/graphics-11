@@ -1,0 +1,11 @@
+frames 10
+basename lighting
+ambient 50 50 50
+constants A 0.1 0.1 0.1 0.5 0.5 0.5 0.5 0.5 0.5
+light un 255 0 0 1 1 0
+light deux 0 255 0 -1 1 0
+push
+move 250 250 0
+rotate y 360 spin
+sphere A 0 0 0 200
+vary spin 0 9 0 1
