@@ -13,7 +13,6 @@ const (
 
 func (image Image) DrawPolygons(p *Matrix, c Color) {
 	m := p.mat
-	cnew := c
 	for i := 0; i < p.cols-2; i += 3 {
 		p0 := []float64{
 			m[0][i],
@@ -38,16 +37,41 @@ func (image Image) DrawPolygons(p *Matrix, c Color) {
 			continue
 		}
 		if cross[2] > 0 {
-			ambient := Color{r: 50, g: 50, b: 50}
-			aReflect := []float64{0.1, 0.1, 0.1}
-			dReflect := []float64{0.5, 0.5, 0.5}
-			sReflect := []float64{0.5, 0.5, 0.5}
-			lights := []Light{Light{location: []float64{0.5, 0.75, 1}, color: Color{r: 0, g: 255, b: 255}}}
+			image.DrawLine(c, int(p0[0]), int(p0[1]), p0[2], int(p1[0]), int(p1[1]), p1[2])
+			image.DrawLine(c, int(p1[0]), int(p1[1]), p1[2], int(p2[0]), int(p2[1]), p2[2])
+			image.DrawLine(c, int(p2[0]), int(p2[1]), p2[2], int(p0[0]), int(p0[1]), p0[2])
+		}
+	}
+}
+
+func (image Image) DrawPolygonsLighting(p *Matrix, ambient Color, cons [][]float64, lights map[string]Light) {
+	m := p.mat
+	for i := 0; i < p.cols-2; i += 3 {
+		p0 := []float64{
+			m[0][i],
+			m[1][i],
+			m[2][i],
+		}
+		p1 := []float64{
+			m[0][i+1],
+			m[1][i+1],
+			m[2][i+1],
+		}
+		p2 := []float64{
+			m[0][i+2],
+			m[1][i+2],
+			m[2][i+2],
+		}
+		v1 := MakeVector(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2])
+		v2 := MakeVector(p0[0], p0[1], p0[2], p2[0], p2[1], p2[2])
+		cross, err := CrossProduct(v1, v2)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		if cross[2] > 0 {
 			view := []float64{0, 0, 1}
-			cnew = CalcLighting(p0, p1, p2, aReflect, dReflect, sReflect, view, ambient, lights)
-			// image.DrawLine(cnew, int(p0[0]), int(p0[1]), p0[2], int(p1[0]), int(p1[1]), p1[2])
-			// image.DrawLine(cnew, int(p1[0]), int(p1[1]), p1[2], int(p2[0]), int(p2[1]), p2[2])
-			// image.DrawLine(cnew, int(p2[0]), int(p2[1]), p2[2], int(p0[0]), int(p0[1]), p0[2])
+			cnew := CalcLighting(p0, p1, p2, cons[0], cons[1], cons[2], view, ambient, lights)
 			image.scanline(p0, p1, p2, cnew)
 		}
 	}

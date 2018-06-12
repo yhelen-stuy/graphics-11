@@ -12,7 +12,7 @@ type Light struct {
 	location []float64
 }
 
-func CalcLighting(p0, p1, p2, Ka, Kd, Ks, view []float64, Ia Color, lights []Light) Color {
+func CalcLighting(p0, p1, p2, Ka, Kd, Ks, view []float64, Ia Color, lights map[string]Light) Color {
 	c := Color{
 		r: 0,
 		g: 0,

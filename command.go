@@ -43,10 +43,11 @@ type RotateCommand struct {
 }
 
 func (c RotateCommand) CommandString() string {
-	return fmt.Sprintf("rotate %s %.1f", c.axis, c.angle)
+	return fmt.Sprintf("rotate %s %.1f %s", c.axis, c.angle, c.knob)
 }
 
 type BoxCommand struct {
+	cons   string
 	x      float64
 	y      float64
 	z      float64
@@ -56,35 +57,38 @@ type BoxCommand struct {
 }
 
 func (c BoxCommand) CommandString() string {
-	return fmt.Sprintf("box %.1f %.1f %.1f %.1f %.1f %.1f", c.x, c.y, c.z, c.height, c.width, c.depth)
+	return fmt.Sprintf("box %s %.1f %.1f %.1f %.1f %.1f %.1f", c.cons, c.x, c.y, c.z, c.height, c.width, c.depth)
 }
 
 type SphereCommand struct {
+	cons   string
 	center []float64
 	radius float64
 }
 
 func (c SphereCommand) CommandString() string {
-	return fmt.Sprintf("sphere %.1f %.1f %.1f %.1f", c.center[0], c.center[1], c.center[2], c.radius)
+	return fmt.Sprintf("sphere %s %.1f %.1f %.1f %.1f", c.cons, c.center[0], c.center[1], c.center[2], c.radius)
 }
 
 type TorusCommand struct {
+	cons   string
 	center []float64
 	r1     float64
 	r2     float64
 }
 
 func (c TorusCommand) CommandString() string {
-	return fmt.Sprintf("torus %.1f %.1f %.1f %.1f %.1f", c.center[0], c.center[1], c.center[2], c.r1, c.r2)
+	return fmt.Sprintf("torus %s %.1f %.1f %.1f %.1f %.1f", c.cons, c.center[0], c.center[1], c.center[2], c.r1, c.r2)
 }
 
 type LineCommand struct {
-	p1 []float64
-	p2 []float64
+	cons string
+	p1   []float64
+	p2   []float64
 }
 
 func (c LineCommand) CommandString() string {
-	return fmt.Sprintf("line %.1f %.1f %.1f %.1f %.1f %.1f", c.p1[0], c.p1[1], c.p1[2], c.p2[0], c.p2[1], c.p2[2])
+	return fmt.Sprintf("line %s %.1f %.1f %.1f %.1f %.1f %.1f", c.cons, c.p1[0], c.p1[1], c.p1[2], c.p2[0], c.p2[1], c.p2[2])
 }
 
 type SaveCommand struct {

@@ -12,9 +12,14 @@ import (
 )
 
 var knobs map[string][]float64
+var constants map[string][][]float64
+var ambient Color
+var lights map[string]Light
 
 func init() {
 	knobs = make(map[string][]float64)
+	constants = make(map[string][][]float64)
+	lights = make(map[string]Light)
 }
 
 type Parser struct {
@@ -108,6 +113,7 @@ func (p *Parser) parseString(input string) ([]Command, error) {
 				commands = append(commands, c)
 			case BOX:
 				c := BoxCommand{
+					cons:   p.nextString(),
 					x:      p.nextFloat(),
 					y:      p.nextFloat(),
 					z:      p.nextFloat(),
@@ -118,12 +124,14 @@ func (p *Parser) parseString(input string) ([]Command, error) {
 				commands = append(commands, c)
 			case SPHERE:
 				c := SphereCommand{
+					cons:   p.nextString(),
 					center: []float64{p.nextFloat(), p.nextFloat(), p.nextFloat()},
 					radius: p.nextFloat(),
 				}
 				commands = append(commands, c)
 			case TORUS:
 				c := TorusCommand{
+					cons:   p.nextString(),
 					center: []float64{p.nextFloat(), p.nextFloat(), p.nextFloat()},
 					r1:     p.nextFloat(),
 					r2:     p.nextFloat(),
@@ -131,8 +139,9 @@ func (p *Parser) parseString(input string) ([]Command, error) {
 				commands = append(commands, c)
 			case LINE:
 				c := LineCommand{
-					p1: []float64{p.nextFloat(), p.nextFloat(), p.nextFloat()},
-					p2: []float64{p.nextFloat(), p.nextFloat(), p.nextFloat()},
+					cons: p.nextString(),
+					p1:   []float64{p.nextFloat(), p.nextFloat(), p.nextFloat()},
+					p2:   []float64{p.nextFloat(), p.nextFloat(), p.nextFloat()},
 				}
 				commands = append(commands, c)
 			case VARY:
@@ -173,6 +182,33 @@ func (p *Parser) parseString(input string) ([]Command, error) {
 				}
 				basename := p.nextRequired([]TokenType{T_STRING})
 				p.basename = basename.val
+			case LIGHT:
+				name := p.nextString()
+				if _, isLight := lights[name]; isLight {
+					fmt.Printf("Warning: Light %s already exists, redefining\n", name)
+				}
+				light := Light{
+					color:    Color{r: p.nextInt(), g: p.nextInt(), b: p.nextInt()},
+					location: []float64{p.nextFloat(), p.nextFloat(), p.nextFloat()},
+				}
+				lights[name] = light
+			case AMBIENT:
+				ambient = Color{r: p.nextInt(), g: p.nextInt(), b: p.nextInt()}
+			case CONSTANTS:
+				name := p.nextString()
+				if _, isConstant := constants[name]; isConstant {
+					fmt.Printf("Warning: Constant %s already exists, redefining\n", name)
+				}
+				con := make([][]float64, 4)
+				con[0] = []float64{p.nextFloat(), p.nextFloat(), p.nextFloat()}
+				con[1] = []float64{p.nextFloat(), p.nextFloat(), p.nextFloat()}
+				con[2] = []float64{p.nextFloat(), p.nextFloat(), p.nextFloat()}
+				if p.peek().ttype == T_INT || p.peek().ttype == T_FLOAT {
+					con[3] = []float64{p.nextFloat(), p.nextFloat(), p.nextFloat()}
+				} else {
+					con[3] = []float64{0, 0, 0}
+				}
+				constants[name] = con
 			case SAVE:
 				c := SaveCommand{}
 				filename := p.nextRequired([]TokenType{T_STRING})
@@ -304,19 +340,43 @@ func (p *Parser) runCommands(commands []Command, frame int) error {
 			c := com.(BoxCommand)
 			p.poly.AddBox(c.x, c.y, c.z, c.height, c.width, c.depth)
 			p.poly, _ = p.poly.Mult(p.stack.Peek())
-			p.image.DrawPolygons(p.poly, Color{r: 0, b: 255, g: 0})
+			if c.cons != "" {
+				cons, isConstant := constants[c.cons]
+				if !isConstant {
+					return fmt.Errorf("Constant %s not found", c.cons)
+				}
+				p.image.DrawPolygonsLighting(p.poly, ambient, cons, lights)
+			} else {
+				p.image.DrawPolygons(p.poly, Color{r: 0, b: 255, g: 0})
+			}
 			p.poly = MakeMatrix(4, 0)
 		case SphereCommand:
 			c := com.(SphereCommand)
 			p.poly.AddSphere(c.center[0], c.center[1], c.center[2], c.radius)
 			p.poly, _ = p.poly.Mult(p.stack.Peek())
-			p.image.DrawPolygons(p.poly, Color{r: 0, b: 255, g: 0})
+			if c.cons != "" {
+				cons, isConstant := constants[c.cons]
+				if !isConstant {
+					return fmt.Errorf("Constant %s not found", c.cons)
+				}
+				p.image.DrawPolygonsLighting(p.poly, ambient, cons, lights)
+			} else {
+				p.image.DrawPolygons(p.poly, Color{r: 0, b: 255, g: 0})
+			}
 			p.poly = MakeMatrix(4, 0)
 		case TorusCommand:
 			c := com.(TorusCommand)
 			p.poly.AddTorus(c.center[0], c.center[1], c.center[2], c.r1, c.r2)
 			p.poly, _ = p.poly.Mult(p.stack.Peek())
-			p.image.DrawPolygons(p.poly, Color{r: 0, b: 255, g: 0})
+			if c.cons != "" {
+				cons, isConstant := constants[c.cons]
+				if !isConstant {
+					return fmt.Errorf("Constant %s not found", c.cons)
+				}
+				p.image.DrawPolygonsLighting(p.poly, ambient, cons, lights)
+			} else {
+				p.image.DrawPolygons(p.poly, Color{r: 0, b: 255, g: 0})
+			}
 			p.poly = MakeMatrix(4, 0)
 		case LineCommand:
 			c := com.(LineCommand)

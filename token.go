@@ -15,8 +15,9 @@ const (
 	T_IDENTIFIER // 7
 	T_EOF        // 8
 
-	LIGHTING
+	LIGHT
 	CONSTANTS
+	CAMERA
 	AMBIENT
 	TORUS
 	SPHERE
@@ -58,18 +59,10 @@ var ops = map[string]TokenType{
 	"display":  DISPLAY,
 
 	// UNIMPLEMENTED
-	"light":             LIGHT,
-	"ambient":           AMBIENT,
-	"camera":            CAMERA,
-	"constants":         CONSTANTS,
-	"save_coord_system": SAVECOORDS,
-	"mesh":              MESH,
-	"set":               SET,
-	"tween":             TWEEN,
-	"generate_rayfiles": GENERATERAYFILES,
-	"shading":           SHADING,
-	"focal":             FOCAL,
-	"setknobs":          SETKNOBS,
+	"light":     LIGHT,
+	"ambient":   AMBIENT,
+	"camera":    CAMERA,
+	"constants": CONSTANTS,
 }
 
 func FindOp(op string) TokenType {

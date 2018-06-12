@@ -1,2 +1,23 @@
-# graphics-11
-Work 11: More Delightful Labor
+# graphics-engine
+
+Graphics engine in Golang for Graphics high school senior year class
+
+## How to Run
+
+To compile to an executable, run
+
+```
+$ make
+```
+
+After compiling, to parse through a script and run the graphics engine, run:
+
+```
+$ ./main FILENAME
+```
+
+For example
+
+```
+$ ./main lighting.mdl
+```
